@@ -38,3 +38,4 @@ test.printallvariables()
 
 
 print("END OF PROGRAM")
+print("GOODBYE!")
