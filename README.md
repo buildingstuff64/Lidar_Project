@@ -9,3 +9,7 @@
 - save MKVfile
 
 #### *note mulitple files are able to be selected & output is in raw array format in frames
+
+# GIT 
+
+![Git Help Sheet](git_cheat_sheet.png)
