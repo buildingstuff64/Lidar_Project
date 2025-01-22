@@ -1,7 +1,11 @@
 import json
 import os.path
 import time
-from mkv_reader import MKVReader, TRACK
+from time import sleep
+
+from direct.dist.FreezeTool import frozenMainCode
+
+from .mkv_reader import MKVReader, TRACK
 from tkinter import Tk
 from tkinter.filedialog import askopenfilenames, askdirectory
 import cv2
@@ -42,6 +46,12 @@ class MKVFile:
             print(path)
             with open(path, "w") as outfile:
                 outfile.write(f.convert2json())
+
+    def getFrame(self, frame):
+        return self.frames[frame]
+
+    def getFrameJson(self, frame):
+        return self.getFrame(frame).convert2json()
 
     def show(self):
         for f in self.frames:
@@ -95,10 +105,19 @@ class MKVTools:
         for f in self.filenames:
             self.readfile(filename = f).save(location)
 
+    def saveFrame(self, filename, frame):
+        location = askdirectory()
+        json = self.readfile(filename=filename).getFrameJson(frame)
+
+    def getFrameJson(self, filename, frame):
+        return self.readfile(filename=filename).getFrameJson(frame)
 
 
 if __name__ == '__main__':
     m = MKVTools()
-    m.readfile().show()
+    file = m.readfile()
+    frame = file.getFrame(0)
+    cv2.imshow("RGB_image", frame.depth)
+    cv2.waitKey(0)
 
 
