@@ -5,7 +5,7 @@ from time import sleep
 
 from direct.dist.FreezeTool import frozenMainCode
 
-from .mkv_reader import MKVReader, TRACK
+from Tools.mkv_reader import MKVReader, TRACK
 from tkinter import Tk
 from tkinter.filedialog import askopenfilenames, askdirectory
 import cv2
@@ -116,8 +116,6 @@ class MKVTools:
 if __name__ == '__main__':
     m = MKVTools()
     file = m.readfile()
-    frame = file.getFrame(0)
-    cv2.imshow("RGB_image", frame.depth)
-    cv2.waitKey(0)
+    file.show()
 
 

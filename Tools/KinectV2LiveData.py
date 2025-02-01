@@ -1,13 +1,12 @@
-#from time import sleep
 import matplotlib.pyplot as plt
 import open3d as o3d
 import cv2
-from numpy.array_api import trunc
-from open3d.cpu.pybind.t.geometry import PointCloud
 from pykinect2024 import PyKinectRuntime
 from pykinect2024.PyKinect2024 import FrameSourceTypes_Color, FrameSourceTypes_Infrared, FrameSourceTypes_Depth
 import numpy as np
 import keyboard
+
+print("starting")
 
 np.set_printoptions(threshold=np.inf)
 
