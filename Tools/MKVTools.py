@@ -1,14 +1,15 @@
 import json
 import os.path
 import time
-from time import sleep
 
-from direct.dist.FreezeTool import frozenMainCode
+import pyk4a
 
 from Tools.mkv_reader import MKVReader, TRACK
 from tkinter import Tk
 from tkinter.filedialog import askopenfilenames, askdirectory
 import cv2
+
+from pyk4a import PyK4APlayback
 
 class MKVFile:
     def __init__(self, filename, track_filter):
@@ -55,9 +56,7 @@ class MKVFile:
 
     def show(self):
         for f in self.frames:
-            cv2.imshow("RGB_image", f.rgb)
-            cv2.imshow("IR_image", f.ir)
-            cv2.imshow("Depth_image", f.depth)
+            f.show()
             if cv2.waitKey(10) & 0xFF == ord('q'):
                  break
 
@@ -69,6 +68,11 @@ class Frame:
         self.rgb = rgb
         self.ir = ir
         self.depth = depth
+
+    def show(self):
+        cv2.imshow("RGB_image", self.rgb)
+        cv2.imshow("IR_image", self.ir)
+        cv2.imshow("Depth_image", self.depth)
 
     def getRGB(self):
         return self.rgb
@@ -114,8 +118,7 @@ class MKVTools:
 
 
 if __name__ == '__main__':
-    m = MKVTools()
-    file = m.readfile()
-    file.show()
+    print()
+
 
 
