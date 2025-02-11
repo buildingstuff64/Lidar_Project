@@ -1,14 +1,10 @@
 # Lidar_Project
- meng group project
+MEng group project
 
-# Tools/MKVTools
-## !! BEAWARE SAVING THE DATA INTO JSON TAKES A REALLLLLLY  LONG TIME, WOULD NOT RECOMMEND !! 
-### Current Functions 
-- get MKVFile 
-- show MKVfile
-- save MKVfile
-
-#### *note mulitple files are able to be selected & output is in raw array format in frames
+# Dev
+All code that is currently in development/test code
+# Prod
+All code that is being use for real
 
 # GIT 
 

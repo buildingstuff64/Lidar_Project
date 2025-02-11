@@ -1,0 +1,11 @@
+opencv-python~=4.10.0.84
+numpy~=2.0.2
+open3d~=0.19.0
+matplotlib~=3.9.2
+keyboard~=0.13.5
+pykinect2024~=0.1.2024
+ursina~=7.0.0
+ultralytics~=8.3.70
+torch~=2.6.0+cu126
+cvlib~=0.2.7
+pyk4a~=1.5.0

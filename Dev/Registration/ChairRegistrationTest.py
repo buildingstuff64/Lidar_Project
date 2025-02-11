@@ -1,8 +1,7 @@
 from open3d.cpu.pybind.visualization import draw_geometries
 
-from Tools.MKVTools import MKVTools
+from Dev.Tools.MKVTools import MKVTools
 import open3d as o3d
-import cv2
 import numpy as np
 
 
@@ -17,7 +16,7 @@ import numpy as np
 
 m = MKVTools()
 file = m.readfile()
-frame = file.getFrame(0)
+frame = file.get_frame(0)
 depth = np.reshape(frame.depth, (576, 640)).astype(np.uint8)
 
 intrinsics = o3d.camera.PinholeCameraIntrinsic(

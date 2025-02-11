@@ -2,14 +2,11 @@ import json
 import os.path
 import time
 
-import pyk4a
-
-from Tools.mkv_reader import MKVReader, TRACK
+from Dev.Tools.mkv_reader import MKVReader, TRACK
 from tkinter import Tk
 from tkinter.filedialog import askopenfilenames, askdirectory
 import cv2
 
-from pyk4a import PyK4APlayback
 
 class MKVFile:
     def __init__(self, filename, track_filter):
