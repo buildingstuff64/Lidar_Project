@@ -1,4 +1,5 @@
 import cv2
+import numpy as np
 from pyk4a import PyK4ACapture, PyK4APlayback
 
 from Prod.Tools.Tools import Tools
@@ -38,6 +39,14 @@ class Frame:
     def get_image(self):
         """returns the frame image"""
         return self.objframe.og_image
+
+    def get_point_cloud_colors(self, _id):
+        """returns the point cloud colors for open3d in the correct format,
+
+         to use pointcloud.colors = o3d.utility.Vector3dVector(get_point_could_colors(id))"""
+        _image = cv2.cvtColor(self.get_image(), cv2.COLOR_BGR2RGB)
+        colored_points = _image[self.objframe.get_mask(_id) == 127]
+        return colored_points.astype(np.float32) / 255.0
 
     def get_masked_image(self, _id):
         """returns the frame masked image"""

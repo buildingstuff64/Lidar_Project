@@ -1,3 +1,4 @@
+import cv2
 import keyboard
 import open3d as o3d
 from pyk4a import PyK4APlayback
@@ -6,6 +7,7 @@ from typing import Optional, Tuple
 from Prod.Tools.Frame import Frame
 from Prod.Tools.ObjectDetectionTools import ObjectDetectionTools, ObjectDetectionFrame
 from Prod.Tools.Tools import Tools
+import numpy as np
 
 
 class AzureKinectTools:
@@ -65,6 +67,9 @@ class AzureKinectTools:
 
             pts = o3d.geometry.PointCloud()
             pts.points = o3d.utility.Vector3dVector(masked_points)
+            _img = _frame.get_masked_image(self.selected_id)
+            colored_points = _img[_frame.objframe.get_mask(self.selected_id) == 127]
+            pts.colors = o3d.utility.Vector3dVector(_frame.get_point_cloud_colors(self.selected_id))
             pts.voxel_down_sample(0.05)
 
             vis.remove_geometry(pcd, False)
@@ -76,6 +81,15 @@ class AzureKinectTools:
 
             if keyboard.is_pressed('q'):
                 vis.reset_view_point(True)
+
+    def show_single_point_cloud(self, index):
+        """Shows a single point cloud frame"""
+        pcd = o3d.geometry.PointCloud()
+        _frame = self.get_frame(index)
+        masked_points = _frame.get_masked_point_cloud(self.selected_id)
+        pcd.points = o3d.utility.Vector3dVector(masked_points)
+        pcd.colors = o3d.utility.Vector3dVector(_frame.get_point_cloud_colors(self.selected_id))
+        o3d.visualization.draw_geometries([pcd])
 
     def show_images(self):
         """Shows the images from the mkv file"""
@@ -101,7 +115,4 @@ class AzureKinectTools:
 if __name__ == "__main__":
     ak = AzureKinectTools(Tools.getPath())
     ak.info()
-    ak.show_images()
-    ak.show_ir_images()
-    ak.show_masked_images()
-    ak.show_transformed_depth()
+    ak.show_masked_point_cloud_video()
