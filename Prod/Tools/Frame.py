@@ -4,6 +4,7 @@ from pyk4a import PyK4ACapture, PyK4APlayback
 
 from Prod.Tools.Tools import Tools
 from Prod.Tools.ObjectDetectionTools import ObjectDetectionFrame
+import open3d as o3d
 
 
 class Frame:
@@ -21,6 +22,10 @@ class Frame:
 
     def get_ir_image(self):
         """returns the IR image"""
+        return self.ir
+
+    def get_depth(self):
+        """returns the Depth image"""
         return self.depth
 
     def get_transformed_depth(self):
@@ -29,7 +34,7 @@ class Frame:
 
     def get_masked_point_cloud(self, _id):
         """returns the masked point cloud data , as a list with shape (N, 3)"""
-        return self.capture.transformed_depth_point_cloud[self.objframe.get_mask(_id) == 127]
+        return self.get_point_cloud()[self.objframe.get_mask(_id) == 127]
 
     def get_point_cloud(self):
         """returns the entire point cloud for a frame, as a list with shape(W, H, 3) -> (1080, 1920, 3).
@@ -75,3 +80,15 @@ class Frame:
         """shows the ir image"""
         cv2.imshow("IR Image", self.get_ir_image())
         cv2.waitKey(int(1000/60))
+
+    def show_point_cloud_colored(self, _id):
+        """shows the frame point cloud with colores attached, uses open3d"""
+        pcd = o3d.geometry.PointCloud()
+        masked_points = self.get_masked_point_cloud(_id)
+        pcd.points = o3d.utility.Vector3dVector(masked_points)
+        pcd.colors = o3d.utility.Vector3dVector(self.get_point_cloud_colors(_id))
+        o3d.visualization.draw_geometries([pcd])
+
+    def get_ids(self):
+        """returns the tracking ids for this frame"""
+        return self.objframe.object_ids

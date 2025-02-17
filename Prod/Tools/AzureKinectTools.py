@@ -36,7 +36,6 @@ class AzureKinectTools:
         print(f"Succesfully imported MKV file {path} \n frame count {self.frames.count}")
         self.object_ids = list(objects_ids_set)
         self.selected_id = 0
-        self.select_object()
 
     def info(self):
         """Prints out mkv file and camera info"""
@@ -82,15 +81,6 @@ class AzureKinectTools:
             if keyboard.is_pressed('q'):
                 vis.reset_view_point(True)
 
-    def show_single_point_cloud(self, index):
-        """Shows a single point cloud frame"""
-        pcd = o3d.geometry.PointCloud()
-        _frame = self.get_frame(index)
-        masked_points = _frame.get_masked_point_cloud(self.selected_id)
-        pcd.points = o3d.utility.Vector3dVector(masked_points)
-        pcd.colors = o3d.utility.Vector3dVector(_frame.get_point_cloud_colors(self.selected_id))
-        o3d.visualization.draw_geometries([pcd])
-
     def show_images(self):
         """Shows the images from the mkv file"""
         for _f in self.get_frames():
@@ -112,7 +102,16 @@ class AzureKinectTools:
             _f.show_ir_image()
 
 
+    def video_saver(self, name, function, size: Tuple[int, int]):
+        """Saves a video of a view, function is the function name of the function you want to call e.g. _f.get_masked_image(_id)"""
+        print(f"saving file --> {name}")
+        vid = cv2.VideoWriter(name, cv2.VideoWriter_fourcc(*'XVID'), 30, size)
+        for _f in self.get_frames():
+            eval(f'vid.write({function})')
+        vid.release()
+        print("save complete")
+
 if __name__ == "__main__":
     ak = AzureKinectTools(Tools.getPath())
     ak.info()
-    ak.show_masked_point_cloud_video()
+    ak.select_object()
