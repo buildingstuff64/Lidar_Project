@@ -1,4 +1,5 @@
 import numpy as np
+from sympy.codegen.cnodes import static
 from ultralytics import YOLO
 import cv2
 from ultralytics.engine.results import Results
@@ -11,11 +12,18 @@ class ObjectDetectionTools:
         self.results = self.model.track(source = self.path, show = False, device = 0, conf = 0.4, save = False,
                                         stream = True)
 
+    @staticmethod
+    def run_single_image(paths, save, conf):
+        model = YOLO("../../Dev/Tools/yolo11n-seg.pt")
+        for p in paths:
+            model(source = p, show=True, device = 0, conf=conf, save=save)
+
 
 class ObjectDetectionFrame:
     def __init__(self, result: Results):
         self.og_image = result.orig_img
         self.object_ids = list()
+        print(result.names.values())
         for id, cls in zip(result.boxes.id.int().cpu().tolist(), result.boxes.cls.int().cpu().tolist()):
             self.object_ids.append((id, result.names[cls]))
         self.result = result

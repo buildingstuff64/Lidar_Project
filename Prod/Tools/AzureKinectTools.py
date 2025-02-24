@@ -28,7 +28,8 @@ class AzureKinectTools:
                 for _id, _cls in zip(r.boxes.id.int().cpu().tolist(), r.boxes.cls.int().cpu().tolist()):
                     objects_ids_set.add((_id, r.names[_cls]))
 
-                self.frames.append(Frame(new_frame, self.playback, new_frame.color, new_frame.depth, new_frame.ir, ObjectDetectionFrame(r)))
+                self.frames.append(Frame(new_frame, self.playback, new_frame.color, new_frame.depth, new_frame.ir,
+                                         ObjectDetectionFrame(r)))
             except EOFError:
                 print(f"oh dear...")
                 break
@@ -101,6 +102,9 @@ class AzureKinectTools:
         for _f in self.get_frames():
             _f.show_ir_image()
 
+    def show_depth(self):
+        for _f in self.get_frames():
+            _f.show_depth()
 
     def video_saver(self, name, function, size: Tuple[int, int]):
         """Saves a video of a view, function is the function name of the function you want to call e.g. _f.get_masked_image(_id)"""
@@ -111,7 +115,9 @@ class AzureKinectTools:
         vid.release()
         print("save complete")
 
+
 if __name__ == "__main__":
+    # ObjectDetectionTools.run_single_image(Tools.getPaths(), True, 0.2)
     ak = AzureKinectTools(Tools.getPath())
-    ak.info()
-    ak.select_object()
+
+

@@ -26,7 +26,7 @@ class Frame:
 
     def get_depth(self):
         """returns the Depth image"""
-        return self.depth
+        return self.capture.depth
 
     def get_transformed_depth(self):
         """returns the transformed depth image"""
@@ -69,6 +69,10 @@ class Frame:
     def show_masked_image(self, id):
         """shows the masked frame image"""
         cv2.imshow("Masked Image", self.get_masked_image(id))
+        cv2.waitKey(int(1000/60))
+
+    def show_depth(self):
+        cv2.imshow("Depth", Tools.colorize(self.get_depth(), (None, 5000)))
         cv2.waitKey(int(1000/60))
 
     def show_transformed_depth(self):

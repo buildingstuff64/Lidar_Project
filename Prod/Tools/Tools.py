@@ -12,6 +12,10 @@ class Tools:
         return askopenfilenames(defaultextension = '.mkv')[0]
 
     @staticmethod
+    def getPaths():
+        return askopenfilenames()
+
+    @staticmethod
     def colorize(image: np.ndarray, clipping_range: Tuple[Optional[int], Optional[int]] = (None, None),
                  colormap: int = cv2.COLORMAP_HSV, ) -> np.ndarray:
         if clipping_range[0] or clipping_range[1]:
