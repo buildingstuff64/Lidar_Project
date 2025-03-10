@@ -117,7 +117,6 @@ class AzureKinectTools:
 
 
 if __name__ == "__main__":
-    # ObjectDetectionTools.run_single_image(Tools.getPaths(), True, 0.2)
-    ak = AzureKinectTools(Tools.getPath())
+    ObjectDetectionTools.live_camera()
 
 

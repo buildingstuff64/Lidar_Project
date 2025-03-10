@@ -18,6 +18,12 @@ class ObjectDetectionTools:
         for p in paths:
             model(source = p, show=True, device = 0, conf=conf, save=save)
 
+    @staticmethod
+    def live_camera():
+        print("starting live camera detection")
+        model = YOLO("../../Dev/Tools/yolo11n-seg.pt")
+        model.track(source=0, show=True, device=0, conf=0.4, save=False)
+
 
 class ObjectDetectionFrame:
     def __init__(self, result: Results):
