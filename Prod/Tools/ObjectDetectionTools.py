@@ -1,3 +1,5 @@
+from types import NoneType
+
 import numpy as np
 from sympy.codegen.cnodes import static
 from ultralytics import YOLO
@@ -9,7 +11,7 @@ class ObjectDetectionTools:
     def __init__(self, path):
         self.path = path
         self.model = YOLO("../../Dev/Tools/yolo11n-seg.pt")
-        self.results = self.model.track(source = self.path, show = False, device = 0, conf = 0.4, save = False,
+        self.results = self.model.track(source = self.path, show = True, device = 0, conf = 0.4, save = False,
                                         stream = True)
 
     @staticmethod
@@ -27,22 +29,32 @@ class ObjectDetectionTools:
 
 class ObjectDetectionFrame:
     def __init__(self, result: Results):
-        self.og_image = result.orig_img
-        self.object_ids = list()
-        print(result.names.values())
-        for id, cls in zip(result.boxes.id.int().cpu().tolist(), result.boxes.cls.int().cpu().tolist()):
-            self.object_ids.append((id, result.names[cls]))
+        if result is None:
+            return
+        try:
+            self.og_image = result.orig_img
+            self.object_ids = list()
+            for id, cls in zip(result.boxes.id.int().cpu().tolist(), result.boxes.cls.int().cpu().tolist()):
+                self.object_ids.append((id, result.names[cls]))
+
+        except Exception:
+            print("Something went wrong")
         self.result = result
 
     def get_mask(self, id):
         """return the mask of the object #note 127 value is high, don't ask why"""
-        mask = np.zeros(self.result.orig_shape[:2], dtype = np.int8)
-        if len(self.object_ids) < 1:
-            return mask
+        try:
+            mask = np.zeros(self.result.orig_shape[:2], dtype = np.int8)
+            if len(self.object_ids) < 1:
+                return mask
 
-        index = self.find_id(id)
-        pts = np.asarray(self.result.masks.xy[index], dtype = np.int32)
-        cv2.fillPoly(mask, [pts], color = (255, 255, 255))
+            index = self.find_id(id)
+            pts = np.asarray(self.result.masks.xy[index], dtype = np.int32)
+            cv2.fillPoly(mask, [pts], color = (255, 255, 255))
+        except TypeError:
+            print("No Mask")
+        except AttributeError:
+            print("result is not real")
         return mask
 
     def get_masked_og_img(self, _id):

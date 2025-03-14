@@ -32,7 +32,9 @@ class AzureKinectTools:
                                          ObjectDetectionFrame(r)))
             except EOFError:
                 print(f"oh dear...")
-                break
+                continue
+            except AttributeError:
+                print(":|")
 
         print(f"Succesfully imported MKV file {path} \n frame count {self.frames.count}")
         self.object_ids = list(objects_ids_set)
@@ -117,6 +119,8 @@ class AzureKinectTools:
 
 
 if __name__ == "__main__":
-    ObjectDetectionTools.live_camera()
+    a = AzureKinectTools(Tools.getPath())
+    a.select_object()
+    a.show_masked_point_cloud_video()
 
 
