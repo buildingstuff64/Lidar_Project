@@ -24,12 +24,12 @@ def get_registration_result(source, target, transformation):
 # Compute feature points
 def preprocess_point_cloud(pcd, voxel_size):
     radius_normal = voxel_size * 2
-    print(":: Estimate normal with search radius %.3f." % radius_normal)
+    #print(":: Estimate normal with search radius %.3f." % radius_normal)
     pcd.estimate_normals(
         o3d.geometry.KDTreeSearchParamHybrid(radius=radius_normal, max_nn=30))
 
     radius_feature = voxel_size * 5
-    print(":: Compute FPFH feature with search radius %.3f." % radius_feature)
+    #print(":: Compute FPFH feature with search radius %.3f." % radius_feature)
     pcd_fpfh = o3d.pipelines.registration.compute_fpfh_feature(
         pcd,
         o3d.geometry.KDTreeSearchParamHybrid(radius=radius_feature, max_nn=100))
@@ -37,14 +37,14 @@ def preprocess_point_cloud(pcd, voxel_size):
 
 # Load point clouds and tranform to arbitary positions
 def prepare_dataset(source, target, voxel_size):
-    print(":: Load two point clouds and disturb initial pose.")
+    #print(":: Load two point clouds and disturb initial pose.")
 
     source.estimate_normals()
     target.estimate_normals()
     trans_init = np.asarray([[0.0, 0.0, 1.0, 0.0], [1.0, 0.0, 0.0, 0.0],
                              [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0]])
     source.transform(trans_init)
-    draw_registration_result(source, target, np.identity(4))
+    #draw_registration_result(source, target, np.identity(4))
 
     source_down, source_fpfh = preprocess_point_cloud(source, voxel_size)
     target_down, target_fpfh = preprocess_point_cloud(target, voxel_size)
@@ -54,9 +54,9 @@ def prepare_dataset(source, target, voxel_size):
 def execute_global_registration(source_down, target_down, source_fpfh,
                                 target_fpfh, voxel_size):
     distance_threshold = voxel_size * 1.5
-    print(":: RANSAC registration on downsampled point clouds.")
-    print("   Since the downsampling voxel size is %.3f," % voxel_size)
-    print("   we use a liberal distance threshold %.3f." % distance_threshold)
+    #print(":: RANSAC registration on downsampled point clouds.")
+    #print("   Since the downsampling voxel size is %.3f," % voxel_size)
+    #print("   a distance threshold of %.3f is used." % distance_threshold)
     result = o3d.pipelines.registration.registration_ransac_based_on_feature_matching(
         source_down, target_down, source_fpfh, target_fpfh, True,
         distance_threshold,
@@ -72,14 +72,24 @@ def execute_global_registration(source_down, target_down, source_fpfh,
 # Refine registration results using ICP
 def refine_registration(source, target, source_fpfh, target_fpfh, result_ransac, voxel_size):
     distance_threshold = voxel_size * 0.4
-    print(":: Point-to-plane ICP registration is applied on original point")
-    print("   clouds to refine the alignment. This time we use a strict")
-    print("   distance threshold %.3f." % distance_threshold)
+    #print(":: Point-to-plane ICP registration is applied on original point")
+    #print("   clouds to refine the alignment. This time a strict")
+    #print("   distance threshold %.3f is used." % distance_threshold)
     result = o3d.pipelines.registration.registration_icp(
         source, target, distance_threshold, result_ransac.transformation,
         o3d.pipelines.registration.TransformationEstimationPointToPlane())
     return result
 
+def refine_registration_colour(source, target, source_fpfh, target_fpfh, result_ransac, voxel_size):
+    distance_threshold = voxel_size * 0.4
+    #print(":: Point-to-plane ICP registration is applied on original point")
+    #print("   clouds to refine the alignment. This time a strict")
+    #print("   distance threshold %.3f is used." % distance_threshold)
+    result = o3d.pipelines.registration.registration_colored_icp(
+        source, target, distance_threshold, result_ransac.transformation)
+    return result
+
+# Compute clusters using DBSCAN
 def get_clusters(pcd, apply_label_colors = False, compute_aabbs = True, eps=500, min_points=10):
         pcd, ind = pcd.remove_statistical_outlier(nb_neighbors=20,std_ratio=2.0)
         labels = np.array(
@@ -103,4 +113,37 @@ def get_clusters(pcd, apply_label_colors = False, compute_aabbs = True, eps=500,
 
         return clusters, aabbs
 
+# Return number of points in point cloud
 def number_of_points(pcd): return len(np.asarray(pcd.points))
+
+# Full RANSAC + ICP pipeline
+def ransac_icp_registration(pcd_A, pcd_B, voxel_size):
+    source, target, source_down, target_down, source_fpfh, target_fpfh = prepare_dataset(pcd_A, pcd_B, voxel_size)
+    result_ransac = execute_global_registration(source_down, target_down, source_fpfh, target_fpfh, voxel_size)
+    result_icp = refine_registration(source, target, source_fpfh, target_fpfh, result_ransac, voxel_size)
+    print("For a voxel size of", voxel_size, ":", result_icp)
+    output_pcd = get_registration_result(source, target, result_icp.transformation)
+    return output_pcd
+
+def ransac_icp_registration_transform(pcd_A, pcd_B, voxel_size):
+    source, target, source_down, target_down, source_fpfh, target_fpfh = prepare_dataset(pcd_A, pcd_B, voxel_size)
+    result_ransac = execute_global_registration(source_down, target_down, source_fpfh, target_fpfh, voxel_size)
+    result_icp = refine_registration(source, target, source_fpfh, target_fpfh, result_ransac, voxel_size)
+    print("For a voxel size of", voxel_size, ":", result_icp)
+    return result_icp.transformation
+
+# Full RANSAC + ICP pipeline return RMSE
+def ransac_icp_registration_rmse(pcd_A, pcd_B, voxel_size):
+    source, target, source_down, target_down, source_fpfh, target_fpfh = prepare_dataset(pcd_A, pcd_B, voxel_size)
+    result_ransac = execute_global_registration(source_down, target_down, source_fpfh, target_fpfh, voxel_size)
+    result_icp = refine_registration(source, target, source_fpfh, target_fpfh, result_ransac, voxel_size)
+    return result_icp.inlier_rmse
+
+# Full RANSAC + Coloured ICP pipeline
+def ransac_colour_icp_registration(pcd_A, pcd_B, voxel_size):
+    source, target, source_down, target_down, source_fpfh, target_fpfh = prepare_dataset(pcd_A, pcd_B, voxel_size)
+    result_ransac = execute_global_registration(source_down, target_down, source_fpfh, target_fpfh, voxel_size)
+    result_icp = refine_registration_colour(source, target, source_fpfh, target_fpfh, result_ransac, voxel_size)
+    print("For a voxel size of", voxel_size, ":", result_icp)
+    output_pcd = get_registration_result(source, target, result_icp.transformation)
+    return output_pcd 
