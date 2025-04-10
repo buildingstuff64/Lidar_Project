@@ -2,7 +2,7 @@ import open3d as o3d
 import numpy as np 
 import copy
 from matplotlib import pyplot as plt
-import AzureKinectTools, Frame, ObjectDetectionTools, keyboard, pyk4a, Tools
+from Prod.Tools import *
 import cv2
 import time
 
@@ -143,14 +143,14 @@ def registrate_raw_pcd(pcd_A,pcd_B,pcd_A_ds,pcd_B_ds,voxel_size): # assumes norm
     return output_pcd
 
 # Full RANSAC + ICP pipeline return RMSE
-#def ransac_icp_registration_rmse(pcd_A, pcd_B, voxel_size):
+def ransac_icp_registration_rmse(pcd_A, pcd_B, voxel_size):
     source, target, source_down, target_down, source_fpfh, target_fpfh = prepare_dataset(pcd_A, pcd_B, voxel_size)
     result_ransac = execute_global_registration(source_down, target_down, source_fpfh, target_fpfh, voxel_size)
     result_icp = refine_registration(source, target, source_fpfh, target_fpfh, result_ransac, voxel_size)
     return result_icp.inlier_rmse
 
 # Full RANSAC + Coloured ICP pipeline
-#def ransac_colour_icp_registration(pcd_A, pcd_B, voxel_size):
+def ransac_colour_icp_registration(pcd_A, pcd_B, voxel_size):
     source, target, source_down, target_down, source_fpfh, target_fpfh = prepare_dataset(pcd_A, pcd_B, voxel_size)
     result_ransac = execute_global_registration(source_down, target_down, source_fpfh, target_fpfh, voxel_size)
     result_icp = refine_registration_colour(source, target, source_fpfh, target_fpfh, result_ransac, voxel_size)
@@ -158,7 +158,7 @@ def registrate_raw_pcd(pcd_A,pcd_B,pcd_A_ds,pcd_B_ds,voxel_size): # assumes norm
     output_pcd = get_registration_result(source, target, result_icp.transformation)
     return output_pcd 
 
-#def refine_registration_colour(source, target, source_fpfh, target_fpfh, result_ransac, voxel_size):
+def refine_registration_colour(source, target, source_fpfh, target_fpfh, result_ransac, voxel_size):
     distance_threshold = voxel_size * 0.4
     #print(":: Point-to-plane ICP registration is applied on original point")
     #print("   clouds to refine the alignment. This time a strict")
@@ -167,14 +167,14 @@ def registrate_raw_pcd(pcd_A,pcd_B,pcd_A_ds,pcd_B_ds,voxel_size): # assumes norm
         source, target, distance_threshold, result_ransac.transformation)
     return result
 
-#def draw_registration_result(source, target, transformation):
+def draw_registration_result(source, target, transformation):
     source_temp = copy.deepcopy(source)
     target_temp = copy.deepcopy(target)
     
     source_temp.transform(transformation)
     o3d.visualization.draw_geometries([source_temp, target_temp])
 
-#def registrate_raw_pcd(pcd_A,pcd_B,voxel_size):
+def registrate_raw_pcd(pcd_A,pcd_B,voxel_size):
     # in order to apply transformation to raw data, the normals have to be calculated first
     pcd_A.estimate_normals()
     pcd_B.estimate_normals() 
