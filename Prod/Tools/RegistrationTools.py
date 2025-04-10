@@ -38,6 +38,7 @@ class Registrator():
             print(pcdb)
             print(id[0])
             self.id_pcd[id[0]] = ransac_icp_registration(pcda, pcdb, self.voxel_size)
+            o3d.visualization.draw_geometries([self.id_pcd[id[0]]])
 
             progress = f"{progress}."
             if self.callback is not None:
@@ -101,7 +102,15 @@ class Registrator():
         voxel = pcd.voxel_down_sample(voxel_size = self.voxel_size)
         print(f"Point Count {number_of_points(voxel)}")
         clusters, aabbs = get_clusters(voxel)
-        crp = pcd.crop(aabbs[-1]) # crop raw point cloud based on calculated clusters
+        best_cluster = clusters[0]
+        best_cluster_id = 0
+        for i, c in enumerate(clusters):
+            if number_of_points(c) > number_of_points(best_cluster):
+                best_cluster = c
+                best_cluster_id = i
+
+        o3d.visualization.draw_geometries([best_cluster])
+        crp = pcd.crop(aabbs[best_cluster_id]) # crop raw point cloud based on calculated clusters
         crp_ds = crp.voxel_down_sample(voxel_size = self.voxel_size)
         print(f"Point Count {number_of_points(crp_ds)}")# get clusters and bounding boxes
-        return crp
+        return crp_ds

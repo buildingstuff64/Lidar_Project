@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+from coloredlogs.converter import capture
 from pyk4a import PyK4ACapture, PyK4APlayback
 
 from Prod.Tools.Tools import Tools
@@ -43,7 +44,7 @@ class Frame:
 
     def get_image(self):
         """returns the frame image"""
-        return self.objframe.og_image #cv2.cvtColor(self.objframe.og_image, cv2.COLOR_BGR2RGBA)
+        return self.color
 
     def get_obj_image(self):
         return self.objframe.result.plot()

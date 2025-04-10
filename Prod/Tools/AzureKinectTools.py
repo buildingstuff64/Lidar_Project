@@ -18,30 +18,79 @@ class AzureKinectTools:
         self.frames = list()
         objects_ids_set = set()
         self.obj = ObjectDetectionTools(path)
-        i = 1
-        for r in self.obj.results:
+
+        # i = 1
+        # for r in self.obj.results:
+        #     try:
+        #         new_frame = self.playback.get_next_capture()
+        #         if new_frame is None or new_frame.color is None or new_frame.depth is None:
+        #             continue
+        #
+        #         color_image_bgr = cv2.imdecode(new_frame.color, cv2.IMREAD_COLOR)
+        #
+        #         # Convert BGR to BGRA by adding an alpha channel
+        #         color_image_bgra = cv2.cvtColor(color_image_bgr, cv2.COLOR_BGR2BGRA)
+        #
+        #         color = cv2.cvtColor(cv2.imdecode(new_frame.color, cv2.IMREAD_COLOR), cv2.COLOR_BGR2BGRA)
+        #
+        #         for _id, _cls in zip(r.boxes.id.int().cpu().tolist(), r.boxes.cls.int().cpu().tolist()):
+        #             objects_ids_set.add((_id, r.names[_cls]))
+        #
+        #
+        #
+        #         self.frames.append(Frame(new_frame, self.playback, color, new_frame.depth, new_frame.ir,
+        #                                  ObjectDetectionFrame(r)))
+        #         if progress_callback is not None:
+        #             progress_callback(i)
+        #             i+=1
+        #     except EOFError:
+        #         print(f"oh dear...")
+        #         continue
+        #     except AttributeError:
+        #         print(":|")
+        #         continue
+        #
+        # print(f"Succesfully imported MKV file {path} \n frame count {self.frames.count}")
+        # self.object_ids = list(objects_ids_set)
+        # self.selected_ids = [0]
+
+        i = 0
+        while True:
             try:
                 new_frame = self.playback.get_next_capture()
-                if new_frame is None:
-                    continue
 
-                for _id, _cls in zip(r.boxes.id.int().cpu().tolist(), r.boxes.cls.int().cpu().tolist()):
-                    objects_ids_set.add((_id, r.names[_cls]))
-
-                self.frames.append(Frame(new_frame, self.playback, new_frame.color, new_frame.depth, new_frame.ir,
-                                         ObjectDetectionFrame(r)))
                 if progress_callback is not None:
                     progress_callback(i)
                     i+=1
+
+                if new_frame is None or new_frame.color is None or new_frame.depth is None:
+                    continue
+
+                colorBGR = cv2.imdecode(new_frame.color, cv2.IMREAD_COLOR)
+                if colorBGR is None:
+                    continue
+
+                results = self.obj.model.track(source = colorBGR, show = False, device = 0, conf = 0.4, save = False, persist = True)
+                print(len(results))
+                for r in results:
+                    for _id, _cls in zip(r.boxes.id.int().cpu().tolist(), r.boxes.cls.int().cpu().tolist()):
+                        objects_ids_set.add((_id, r.names[_cls]))
+
+
+
+                    self.frames.append(Frame(new_frame, self.playback, cv2.cvtColor(colorBGR, cv2.COLOR_BGR2BGRA), new_frame.depth, new_frame.ir, ObjectDetectionFrame(r)))
+
             except EOFError:
-                print(f"oh dear...")
-                continue
-            except AttributeError:
-                print(":|")
+                print(f"End of File")
+                break
+            except Exception as e:
+                print(f"!!! {e} !!!")
 
         print(f"Succesfully imported MKV file {path} \n frame count {self.frames.count}")
         self.object_ids = list(objects_ids_set)
         self.selected_ids = [0]
+
+
 
     def info(self):
         """Prints out mkv file and camera info"""

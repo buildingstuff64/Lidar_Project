@@ -2,25 +2,52 @@ import json
 import os.path
 import pickle
 import uuid
+from cProfile import label
 from pathlib import Path
+from textwrap import indent
 
 import cv2
 import numpy as np
 from PIL import Image
 from dearpygui import dearpygui as dpg
+from torch.ao.nn.quantized.functional import upsample
+from ultralytics import settings
 
 from Prod.Tools.AzureKinectTools import AzureKinectTools
 from Prod.Tools.RegistrationTools import Registrator
 from Prod.Tools.Tools import Tools
+from Prod.Tools.KNN_upsample import run_main
 
 ak = None
 current_frame = None
 total_frames = 0
 slider = None
 
+SETTINGS_DEFAULT = {
+    "input_file_path": "",
+    "frame_bundle" : "",
+    "upsample_factor": 19,
+    "knn_factor" : 14,
+    "cov_factor" : 0.4,
+    "upsample_filename": ""
+}
+
 default_json_path = "settings.json"
-with open(default_json_path, "r") as f:
-    settings = json.load(f)
+
+def load_settings():
+    global settings
+    if not os.path.exists(default_json_path):
+        with open(default_json_path, "w") as f:
+            json.dump(SETTINGS_DEFAULT, f, indent = 4)
+
+    with open(default_json_path, "r") as f:
+        settings = json.load(f)
+
+def save_settings():
+    global settings
+    with open(default_json_path, "w") as f:
+        json.dump(settings, f, indent = 4)
+
 
 def load_mkv_callback(sender, app_data):
     global settings
@@ -48,20 +75,33 @@ def update_frame():
     dpg.set_value("depth_video_frame", convert_img(Tools.colorize(current_frame.get_transformed_depth())))
     update_list()
 
+global_check_obj = {}
+global_selected_ids = {}
+
 def import_mkv():
-    global settings, ak, total_frames, current_frame
+    global settings, ak, total_frames, current_frame, global_check_obj
     dpg.show_item("file_import")
     ak = AzureKinectTools(settings['input_file_path'], progress_callback=update_progress_bar)
+    current_frame = ak.get_frame(0)
     dpg.set_value("progress_bar", f"All Frames Processed")
     total_frames = len(ak.get_frames())
 
     refresh_bundles()
+
+    if dpg.does_item_exist("global_object_ids"):
+        dpg.delete_item("global_object_ids")
+        global_check_obj.clear()
+    with dpg.child_window(label = "Global Objects in Frame", tag = "global_object_ids", parent = "object_list", show = True):
+        for item in ak.object_ids:
+            print(item)
+            global_check_obj[item] = dpg.add_checkbox(label = item, callback = on_item_select)
+    on_item_select()
+
     dpg.configure_item("video_slider", max_value = total_frames)
     dpg.show_item("frame_tools")
     dpg.show_item("video_window")
     dpg.hide_item("file_import")
 
-    current_frame = ak.get_frame(0)
     update_frame()
 
 def update_progress_bar(progress):
@@ -84,6 +124,7 @@ def update_list():
         dpg.delete_item("object_ids")
         checkboxes.clear()
     with dpg.child_window(label = "Objects in Frame", tag = "object_ids", parent = "object_list", show = True):
+        dpg.add_text("Frame Objects")
         for item in current_frame.get_ids():
             checkboxes[item] = dpg.add_checkbox(label = item, callback = on_item_select)
     on_item_select()
@@ -93,11 +134,17 @@ def show_frame_point_cloud():
     current_frame.show_point_cloud_colored(selected_ids)
 
 def on_item_select():
-    global checkboxes, selected_ids
+    global checkboxes, selected_ids, global_selected_ids, global_check_obj
     selected_ids = []
     for item, checkbox_id in checkboxes.items():
         if dpg.get_value(checkbox_id):
             selected_ids.append(item[0])
+    global_selected_ids = []
+    for item, checkbox_id in global_check_obj.items():
+        if dpg.get_value(checkbox_id):
+            global_selected_ids.append(item[0])
+
+    selected_ids = list(set(selected_ids + global_selected_ids))
     dpg.set_value("mask_video_frame", convert_img(current_frame.get_masked_image(selected_ids)))
 
 def save_frame():
@@ -106,6 +153,7 @@ def save_frame():
 
     save_img(current_frame.get_image(), dir_path, "rgb_image")
     save_img(current_frame.get_obj_image(), dir_path, "obj_image")
+    save_img(current_frame.get_masked_image(selected_ids), dir_path, "mask_image")
     save_img(Tools.colorize(current_frame.get_transformed_depth()), dir_path, "depth_image")
 
     current_frame.save_point_cloud_colored(selected_ids, f"{dir_path}/point_cloud")
@@ -121,7 +169,7 @@ def save_frame():
 
 bundles = [""]
 frames = []
-selected_bundle = 0
+selected_bundle = bundles[0]
 def refresh_bundles():
     global bundles
     root = Path("SavedFrames")
@@ -131,9 +179,10 @@ def refresh_bundles():
 def refresh_frames():
     global frames
     if len(bundles) > 0:
-        root = Path(f"SavedFrames/{bundles[selected_bundle]}")
+        print(selected_bundle)
+        root = Path(f"SavedFrames/{selected_bundle}")
         frames = [d.name for d in root.iterdir() if d.is_dir()]
-        dpg.configure_item("bundle_name", default_value = bundles[selected_bundle])
+        dpg.configure_item("bundle_name", default_value = selected_bundle)
         update_save_list()
 
 def save_img(data, path, name):
@@ -148,15 +197,18 @@ def update_save_list():
 def bundle_select():
     global selected_bundle
     selected_bundle = dpg.get_value("bundles_list")
+    print(selected_bundle)
 
 def bundle_select_reg():
     global selected_bundle
     selected_bundle = dpg.get_value("bundle_selector")
+    print(selected_bundle)
+    update_editor_bundle()
 
 def frame_select():
     global current_frame
     selected_frame = dpg.get_value("frame_list")
-    dir = f"SavedFrames/{bundles[selected_bundle]}/{selected_frame}"
+    dir = f"SavedFrames/{selected_bundle}/{selected_frame}"
     open_folder(dir)
 
 def open_folder(path):
@@ -170,7 +222,7 @@ def __link_callback(sender, app_data):
 def __delink_callback(_, app_data):
     dpg.delete_item(app_data)
 
-def create_node(name, pos = (100, 100), io = [[], []], tag=""):
+def create_node(name, pos = (100, 100), io = [[], []], tag="", image_path = ""):
     global selected_bundle, bundles
     with dpg.node(label = name, parent = "node_editor", pos=pos, tag=tag) as node_id:
         with dpg.popup(dpg.last_item(), mousebutton = dpg.mvMouseButton_Right):
@@ -181,14 +233,31 @@ def create_node(name, pos = (100, 100), io = [[], []], tag=""):
             if c is not None:
                 dpg.add_node_link(c, node, parent = "node_editor")
 
+        if image_path != "":
+            img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+            width = int(img.shape[1] * 0.1)  # Scale to 50% of the original width
+            height = int(img.shape[0] * 0.1)  # Scale to 50% of the original height
+
+            img = cv2.cvtColor(cv2.resize(img, (width, height)), cv2.COLOR_BGR2RGBA)
+            height, width, _ = img.shape
+            # Normalize pixel values to [0, 1]
+            img_data = img.astype(np.float32) / 255.0
+            img_data = img_data.flatten()
+
+            # Create texture
+            with dpg.texture_registry():
+                tex_id = dpg.add_static_texture(width, height, img_data)
+
+            with dpg.node_attribute(attribute_type = dpg.mvNode_Attr_Static):
+                dpg.add_image(width = width, height = height, texture_tag = tex_id)
+
         for c in io[1]:
             with dpg.node_attribute(attribute_type = dpg.mvNode_Attr_Output) as node:
                 dpg.add_text("OUT")
             if c is not None:
                 dpg.add_node_link(node, c, parent = "node_editor")
+
     return node_id
-
-
 
 def create_new_node():
     selected_nodes = dpg.get_selected_nodes("node_editor")
@@ -213,17 +282,22 @@ def create_new_node():
 
 def update_editor_bundle():
     global selected_bundle, bundles, frames
+    if len(bundles) < 1:
+        return
+    if selected_bundle == "":
+        selected_bundle = bundles[0]
+
     if dpg.does_item_exist("node_editor"):
         dpg.delete_item("node_editor")
 
-    with dpg.node_editor(tag = "node_editor", width = 1500, height = 1000, callback=__link_callback, delink_callback=__delink_callback):
+    with dpg.node_editor(tag = "node_editor",parent = "node_editor_tab" ,width = 1500, height = 1000, callback=__link_callback, delink_callback=__delink_callback):
 
         refresh_bundles()
         i = 0
         for f in frames:
-            print(f)
-            create_node(f, io = [[],[None]], pos = [0, i])
-            i+=100
+
+            create_node(f, io = [[],[None]], pos = [0, i], image_path = f"SavedFrames/{selected_bundle}/{f}/obj_image.png")
+            i+= 200
         create_node("Final Point Cloud", io = ([None], []), pos = [500, i/2], tag="FinalPointCloud")
         print("bundles")
 
@@ -256,12 +330,31 @@ def run_registration():
         incoming_nodes.update(targets)
     root_nodes = outgoing_nodes - incoming_nodes
 
-    reg = Registrator(root_nodes, dpg.get_value("output_filename"), graph, bundles[selected_bundle], dpg.get_value("voxel_size"), callback = reg_progress)
+    reg = Registrator(root_nodes, dpg.get_value("output_filename"), graph, selected_bundle, dpg.get_value("voxel_size"), callback = reg_progress)
 
 def reg_progress(progress):
     dpg.set_value("registration_progress", progress)
 
+upsample_file = ""
+def load_upsample_file(sender, app_data):
+    global upsample_file
+    upsample_file = app_data['file_path_name']
+    dpg.set_value("upsample_file", upsample_file)
+    dpg.show_item("parameter_group")
+
+def run_upsample():
+    global settings, upsample_file
+    print("starting upsample")
+    settings['upsample_factor'] = dpg.get_value("upsample_factor")
+    settings['knn_factor'] = dpg.get_value("knn_factor")
+    settings['cov_factor'] = dpg.get_value("cov_factor")
+    settings['upsample_filename'] = dpg.get_value('upsample_filename')
+
+    run_main(upsample_file, settings)
+
+
 dpg.create_context()
+load_settings()
 
 with dpg.texture_registry():
     initial_texture = np.zeros((1920, 1080, 4), dtype=np.uint8).flatten()
@@ -284,22 +377,27 @@ with dpg.window(label="File Import", modal=True, show=False, tag="file_import", 
 with dpg.file_dialog(directory_selector = False, show=False, callback = load_mkv_callback, tag = "file_dialog_id", width = 500, height = 700):
     dpg.add_file_extension("Video Files (*.mkv){.mkv}")
 
+with dpg.file_dialog(directory_selector = False, show=False, callback = load_upsample_file, tag = "file_dialog_id_upsample", width = 500, height = 700):
+    dpg.add_file_extension("Point Cloud Files (*.ply){.ply}")
+
 with dpg.handler_registry():
 
     #tools
     with dpg.window(label = "Frame Tools", tag="frame_tools", show = False, width = 500, height = 500):
-        slider = dpg.add_slider_int(label = "Select Frame", tag = "video_slider", default_value = 0, min_value = 0, max_value = total_frames, callback = update_frame_viewer)
+        #slider = dpg.add_slider_int(label = "Select Frame", tag = "video_slider", default_value = 0, min_value = 0, max_value = total_frames, callback = update_frame_viewer)
+        dpg.add_input_int(label = "Select Frame", tag = "video_slider", default_value = 0, max_value = total_frames, callback = update_frame_viewer)
         dpg.add_text("Object in Frame")
         dpg.add_button(label = "View Point Cloud (open3d)", callback = show_frame_point_cloud)
         with dpg.tab_bar():
             with dpg.tab(label = "Saved Data", tag = "frame_save"):
-                dpg.add_input_text(default_value = bundles[selected_bundle], label = "Frame Bundle Name",
+                dpg.add_input_text(default_value = selected_bundle, label = "Frame Bundle Name",
                                    tag = "bundle_name")
                 dpg.add_button(label = "Save", callback = save_frame)
                 with dpg.group(label = "Saved Data", tag = "saved_data", horizontal = True):
                     dpg.add_listbox(items = bundles, label = "", tag = "bundles_list", num_items = 5, width = 200, callback = refresh_bundles)
                     dpg.add_listbox(items = frames, label = "", tag = "frame_list", num_items = 5, width = 200, callback = frame_select)
-            dpg.add_tab(label = "Object Select", tag = "object_list")
+            with dpg.tab(label = "Object Select", tag = "object_list"):
+                dpg.add_text("Global Objects")
 
     #video viewer
     with dpg.window(label = "Frame Viewer",tag = "video_window", show = False, pos=[450, 75]):
@@ -325,13 +423,24 @@ with dpg.handler_registry():
                 dpg.add_input_text(label = "Filename", tag="output_filename")
                 dpg.add_button(label = "Run Registration", callback = run_registration)
                 dpg.add_text(label = "", tag = "registration_progress")
-            with dpg.tab(label = "Point Cloud Merging"):
-                update_editor_bundle()
+            dpg.add_tab(label = "Point Cloud Merging", tag = "node_editor_tab")
 
 
-
-
-
+    with dpg.window(label = "Point Cloud Upsampling", tag = "upsample_window", show = False, pos = [450, 75], width = 400, height = 600):
+        with dpg.group(horizontal = True):
+            dpg.add_button(label = "Import File", callback = lambda : dpg.show_item("file_dialog_id_upsample"))
+            dpg.add_text("", tag="upsample_file")
+        with dpg.group(label = "Parameters", tag = "parameter_group", show = False):
+            dpg.add_text("Upsample Factor")
+            dpg.add_input_int(tag = "upsample_factor", default_value = settings["upsample_factor"])
+            dpg.add_text("Knn Factor")
+            dpg.add_input_int(tag = "knn_factor", default_value = settings["knn_factor"])
+            dpg.add_text("Cov Spread Factor")
+            dpg.add_input_float(tag = "cov_factor", default_value = settings["cov_factor"])
+            dpg.add_spacer(height = 100)
+            dpg.add_text("Output Filename")
+            dpg.add_input_text(tag = "upsample_filename", default_value = "New Upsampled Point Cloud")
+            dpg.add_button(label = "Generate", callback = run_upsample)
 
 dpg.create_viewport(title = "LiDAR project")
 
@@ -340,12 +449,14 @@ with dpg.viewport_menu_bar():
         dpg.add_menu_item(label = "Import .mkv", callback = lambda: dpg.show_item("file_dialog_id"))
         dpg.add_menu_item(label = f"Import {settings['input_file_path']}", callback = import_mkv)
     with dpg.menu(label = "Settings"):
-        dpg.add_menu_item(label = "Load (settings.json)")
-        dpg.add_menu_item(label = "Save (settings.json)")
+        dpg.add_menu_item(label = "Load (settings.json)", callback = load_settings)
+        dpg.add_menu_item(label = "Save (settings.json)", callback = save_settings)
     dpg.add_menu_item(label = "Registration", callback = lambda : dpg.show_item("registration_window"))
+    dpg.add_menu_item(label = "Upsampling", callback = lambda: dpg.show_item("upsample_window"))
 
 
 refresh_bundles()
+update_editor_bundle()
 dpg.setup_dearpygui()
 
 dpg.show_viewport()
