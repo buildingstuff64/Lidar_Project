@@ -43,7 +43,10 @@ class Frame:
 
     def get_image(self):
         """returns the frame image"""
-        return self.objframe.og_image
+        return self.objframe.og_image #cv2.cvtColor(self.objframe.og_image, cv2.COLOR_BGR2RGBA)
+
+    def get_obj_image(self):
+        return self.objframe.result.plot()
 
     def get_point_cloud_colors(self, _id):
         """returns the point cloud colors for open3d in the correct format,
@@ -92,6 +95,13 @@ class Frame:
         pcd.points = o3d.utility.Vector3dVector(masked_points)
         pcd.colors = o3d.utility.Vector3dVector(self.get_point_cloud_colors(_id))
         o3d.visualization.draw_geometries([pcd])
+
+    def save_point_cloud_colored(self, _id, path):
+        pcd = o3d.geometry.PointCloud()
+        masked_points = self.get_masked_point_cloud(_id)
+        pcd.points = o3d.utility.Vector3dVector(masked_points)
+        pcd.colors = o3d.utility.Vector3dVector(self.get_point_cloud_colors(_id))
+        o3d.io.write_point_cloud(f"{path}.ply", pcd, write_ascii = False)
 
     def get_ids(self):
         """returns the tracking ids for this frame"""

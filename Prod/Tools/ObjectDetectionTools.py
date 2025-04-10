@@ -1,6 +1,7 @@
 from types import NoneType
 
 import numpy as np
+from sympy import false
 from sympy.codegen.cnodes import static
 from ultralytics import YOLO
 import cv2
@@ -10,20 +11,20 @@ from ultralytics.engine.results import Results
 class ObjectDetectionTools:
     def __init__(self, path):
         self.path = path
-        self.model = YOLO("../../Dev/Tools/yolo11n-seg.pt")
-        self.results = self.model.track(source = self.path, show = True, device = 0, conf = 0.4, save = False,
+        self.model = YOLO("yolo11m-seg.pt")
+        self.results = self.model.track(source = self.path, show = False, device = 0, conf = 0.4, save = False,
                                         stream = True)
 
     @staticmethod
     def run_single_image(paths, save, conf):
-        model = YOLO("../../Dev/Tools/yolo11n-seg.pt")
+        model = YOLO("yolo11m-seg.pt")
         for p in paths:
             model(source = p, show=True, device = 0, conf=conf, save=save)
 
     @staticmethod
     def live_camera():
         print("starting live camera detection")
-        model = YOLO("../../Dev/Tools/yolo11n-seg.pt")
+        model = YOLO("yolo11n-seg.pt")
         model.track(source=0, show=True, device=0, conf=0.4, save=False)
 
 
@@ -45,14 +46,17 @@ class ObjectDetectionFrame:
         """return the mask of the object #note 127 value is high, don't ask why"""
         try:
             mask = np.zeros(self.result.orig_shape[:2], dtype = np.int8)
-            if len(self.object_ids) < 1:
+            if len(self.object_ids) < 1 or len(id) < 1:
                 return mask
+            for i in id:
+                index = self.find_id(i)
+                if index is None:
+                    continue
+                pts = np.asarray(self.result.masks.xy[index], dtype = np.int32)
+                cv2.fillPoly(mask, [pts], color = (255, 255, 255))
 
-            index = self.find_id(id)
-            pts = np.asarray(self.result.masks.xy[index], dtype = np.int32)
-            cv2.fillPoly(mask, [pts], color = (255, 255, 255))
-        except TypeError:
-            print("No Mask")
+        except TypeError as e:
+            print(f"No Mask {e}")
         except AttributeError:
             print("result is not real")
         return mask

@@ -11,14 +11,14 @@ import numpy as np
 
 
 class AzureKinectTools:
-    def __init__(self, path):
+    def __init__(self, path, progress_callback = None):
         self.playback = PyK4APlayback(path)
         self.playback.open()
         self.calibration = self.playback.calibration
         self.frames = list()
-
         objects_ids_set = set()
         self.obj = ObjectDetectionTools(path)
+        i = 1
         for r in self.obj.results:
             try:
                 new_frame = self.playback.get_next_capture()
@@ -30,6 +30,9 @@ class AzureKinectTools:
 
                 self.frames.append(Frame(new_frame, self.playback, new_frame.color, new_frame.depth, new_frame.ir,
                                          ObjectDetectionFrame(r)))
+                if progress_callback is not None:
+                    progress_callback(i)
+                    i+=1
             except EOFError:
                 print(f"oh dear...")
                 continue
@@ -38,7 +41,7 @@ class AzureKinectTools:
 
         print(f"Succesfully imported MKV file {path} \n frame count {self.frames.count}")
         self.object_ids = list(objects_ids_set)
-        self.selected_id = 0
+        self.selected_ids = [0]
 
     def info(self):
         """Prints out mkv file and camera info"""
@@ -48,10 +51,12 @@ class AzureKinectTools:
     def select_object(self):
         """Prompts user to select the required object"""
         print(f"objects found {self.object_ids}")
-        self.selected_id = input("select which object to track \n --> ")
+        str = input("select which object to track \n --> ")
+        self.selected_ids = [int(x.strip()) for x in str.split(',')]
+        print(self.selected_ids)
 
     def get_frame(self, index) -> Frame:
-        return self.frames[0]
+        return self.frames[index]
 
     def get_frames(self, _range: Tuple[Optional[int], Optional[int]] = (None, None)) -> list[Frame]:
         return self.frames[_range[0]:_range[1]]
@@ -65,13 +70,13 @@ class AzureKinectTools:
         vis.reset_view_point(True)
 
         for _frame in self.get_frames():
-            masked_points = _frame.get_masked_point_cloud(self.selected_id)
+            masked_points = _frame.get_masked_point_cloud(self.selected_ids)
 
             pts = o3d.geometry.PointCloud()
             pts.points = o3d.utility.Vector3dVector(masked_points)
-            _img = _frame.get_masked_image(self.selected_id)
-            colored_points = _img[_frame.objframe.get_mask(self.selected_id) == 127]
-            pts.colors = o3d.utility.Vector3dVector(_frame.get_point_cloud_colors(self.selected_id))
+            _img = _frame.get_masked_image(self.selected_ids)
+            colored_points = _img[_frame.objframe.get_mask(self.selected_ids) == 127]
+            pts.colors = o3d.utility.Vector3dVector(_frame.get_point_cloud_colors(self.selected_ids))
             pts.voxel_down_sample(0.05)
 
             vis.remove_geometry(pcd, False)
@@ -92,7 +97,7 @@ class AzureKinectTools:
     def show_masked_images(self):
         """Shows the masked images, uses the selected_ID as reference"""
         for _f in self.get_frames():
-            _f.show_masked_image(self.selected_id)
+            _f.show_masked_image(self.selected_ids)
 
     def show_transformed_depth(self):
         """Shows the transformed depth images from the MKV file"""
