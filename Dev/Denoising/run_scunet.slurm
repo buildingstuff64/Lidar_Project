@@ -13,6 +13,6 @@ source ~/.bashrc
 
 conda activate SCUNet
 
-cd ~/SCUNet
+cd ~/Lidar_Project/Dev/Denoising
 
-python main_test_scunet_real_application.py --model_name scunet_color_real_psnr --testset_name TESTSET_DIR
+python main_test_scunet_real_application.py --model_name scunet_color_real_psnr --testset_name INSERT_TESTSET_DIR
