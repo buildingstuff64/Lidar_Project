@@ -50,7 +50,7 @@ class Registrator():
                 final_pcd = self.id_pcd[k]
 
         if final_pcd is not None:
-            dir_path = Path(f"PointClouds/{self.bundle_path}")
+            dir_path = Path(f"../Main/PointClouds/{self.bundle_path}")
             dir_path.mkdir(parents = True, exist_ok = True)
             o3d.io.write_point_cloud(f"{dir_path}/{self.output_path}.ply", final_pcd)
 

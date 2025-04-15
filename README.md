@@ -1,11 +1,9 @@
 # Lidar_Project
 MEng group project
 
-# Dev
-All code that is currently in development/test code
-# Prod
-All code that is being use for real
+# Main
+The code that works, [Main_GUI.py](Main/Scripts/Main_GUI.py) is the main program to run
 
-# GIT 
+# Archive
+Old code i'm scared to get rid of
 
-![Git Help Sheet](git_cheat_sheet.png)
