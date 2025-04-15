@@ -18,7 +18,7 @@ pyk4a~=1.5.0
 
 For usage of each module refer below
 
-## [AzureKinectTools](AzureKinectTools.py)
+## [AzureKinectTools](Scripts/AzureKinectTools.py)
 
 Example of functions that can be used
 

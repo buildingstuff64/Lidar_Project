@@ -1,17 +1,20 @@
+from datetime import datetime
+
 import cv2
 import keyboard
 import open3d as o3d
 from pyk4a import PyK4APlayback
 from typing import Optional, Tuple
 
-from Prod.Tools.Frame import Frame
-from Prod.Tools.ObjectDetectionTools import ObjectDetectionTools, ObjectDetectionFrame
-from Prod.Tools.Tools import Tools
-import numpy as np
+from Main.Scripts.Denoiser import Denoiser
+from Main.Scripts.Frame import Frame
+from Main.Scripts.ObjectDetectionTools import ObjectDetectionTools, ObjectDetectionFrame
+from Main.Scripts.Tools import Tools
 
 
 class AzureKinectTools:
     def __init__(self, path, progress_callback = None):
+        self.frame_count = self.calc_frame_count(path)
         self.playback = PyK4APlayback(path)
         self.playback.open()
         self.calibration = self.playback.calibration
@@ -19,49 +22,12 @@ class AzureKinectTools:
         objects_ids_set = set()
         self.obj = ObjectDetectionTools(path)
 
-        # i = 1
-        # for r in self.obj.results:
-        #     try:
-        #         new_frame = self.playback.get_next_capture()
-        #         if new_frame is None or new_frame.color is None or new_frame.depth is None:
-        #             continue
-        #
-        #         color_image_bgr = cv2.imdecode(new_frame.color, cv2.IMREAD_COLOR)
-        #
-        #         # Convert BGR to BGRA by adding an alpha channel
-        #         color_image_bgra = cv2.cvtColor(color_image_bgr, cv2.COLOR_BGR2BGRA)
-        #
-        #         color = cv2.cvtColor(cv2.imdecode(new_frame.color, cv2.IMREAD_COLOR), cv2.COLOR_BGR2BGRA)
-        #
-        #         for _id, _cls in zip(r.boxes.id.int().cpu().tolist(), r.boxes.cls.int().cpu().tolist()):
-        #             objects_ids_set.add((_id, r.names[_cls]))
-        #
-        #
-        #
-        #         self.frames.append(Frame(new_frame, self.playback, color, new_frame.depth, new_frame.ir,
-        #                                  ObjectDetectionFrame(r)))
-        #         if progress_callback is not None:
-        #             progress_callback(i)
-        #             i+=1
-        #     except EOFError:
-        #         print(f"oh dear...")
-        #         continue
-        #     except AttributeError:
-        #         print(":|")
-        #         continue
-        #
-        # print(f"Succesfully imported MKV file {path} \n frame count {self.frames.count}")
-        # self.object_ids = list(objects_ids_set)
-        # self.selected_ids = [0]
-
+        print(self.frame_count)
         i = 0
         while True:
             try:
+                start_time = datetime.now()
                 new_frame = self.playback.get_next_capture()
-
-                if progress_callback is not None:
-                    progress_callback(i)
-                    i+=1
 
                 if new_frame is None or new_frame.color is None or new_frame.depth is None:
                     continue
@@ -76,9 +42,16 @@ class AzureKinectTools:
                     for _id, _cls in zip(r.boxes.id.int().cpu().tolist(), r.boxes.cls.int().cpu().tolist()):
                         objects_ids_set.add((_id, r.names[_cls]))
 
+                    #enhanced_img = cv2.cvtColor(self.denoiser.run_img(cv2.cvtColor(colorBGR, cv2.COLOR_BGR2RGB)), cv2.COLOR_RGB2BGR)
+                    #cv2.imshow("Denoised Image", enhanced_img)
+                    #cv2.waitKey(1)
 
+                    self.frames.append(Frame(new_frame, self.playback, cv2.cvtColor(colorBGR, cv2.COLOR_BGR2BGRA), new_frame.depth, new_frame.ir, ObjectDetectionFrame(r), self))
+                est_time = datetime.now() - start_time
 
-                    self.frames.append(Frame(new_frame, self.playback, cv2.cvtColor(colorBGR, cv2.COLOR_BGR2BGRA), new_frame.depth, new_frame.ir, ObjectDetectionFrame(r)))
+                if progress_callback is not None:
+                    i+=1
+                    progress_callback(f"{i} / {self.frame_count} : avgtime {est_time.total_seconds()}s : estimated time left {est_time * (self.frame_count-i)}")
 
             except EOFError:
                 print(f"End of File")
@@ -91,6 +64,20 @@ class AzureKinectTools:
         self.selected_ids = [0]
 
 
+    @staticmethod
+    def calc_frame_count(path):
+        frame_counter = PyK4APlayback(path)
+        frame_counter.open()
+        frame_count = 0
+        while True:
+            try:
+                f = frame_counter.get_next_capture()
+                frame_count += 1
+            except:
+                print(f"End of File")
+                break
+        frame_counter.close()
+        return frame_count
 
     def info(self):
         """Prints out mkv file and camera info"""
@@ -174,7 +161,6 @@ class AzureKinectTools:
 
 if __name__ == "__main__":
     a = AzureKinectTools(Tools.getPath())
-    a.select_object()
-    a.show_masked_point_cloud_video()
+
 
 

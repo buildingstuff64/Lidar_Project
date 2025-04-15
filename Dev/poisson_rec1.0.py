@@ -1,7 +1,7 @@
 import open3d as o3d
 import numpy as np
 
-from Prod.Tools.Tools import Tools
+from Main.Scripts.Tools import Tools
 
 print("Load a ply point cloud, print it, and render it")
 pcd = o3d.io.read_point_cloud(Tools.getPath())

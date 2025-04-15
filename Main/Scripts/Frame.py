@@ -1,21 +1,37 @@
 import cv2
 import numpy as np
-from coloredlogs.converter import capture
 from pyk4a import PyK4ACapture, PyK4APlayback
+from sympy import false
 
-from Prod.Tools.Tools import Tools
-from Prod.Tools.ObjectDetectionTools import ObjectDetectionFrame
+#from Main.Scripts.AzureKinectTools import AzureKinectTools
+from Main.Scripts.Denoiser import Denoiser
+from Main.Scripts.Tools import Tools
+from Main.Scripts.ObjectDetectionTools import ObjectDetectionFrame
 import open3d as o3d
 
 
 class Frame:
-    def __init__(self, capture: PyK4ACapture, info: PyK4APlayback, color, depth, ir, objframe: ObjectDetectionFrame):
+    def __init__(self, capture: PyK4ACapture, info: PyK4APlayback, color, depth, ir, objframe: ObjectDetectionFrame, ak):
         self.capture = capture
         self.info = info
         self.color = color
         self.depth = depth
         self.ir = ir
         self.objframe = objframe
+        self.ak = ak
+        self.denoised = None
+
+    def rerun_with_denoise(self):
+        denoiser = Denoiser("../Main/Models/scunet_color_real_psnr.pth")
+        den_img = denoiser.run_img(cv2.cvtColor(self.color, cv2.COLOR_BGRA2RGB))
+
+        results = self.ak.obj.model.track(source = cv2.cvtColor(den_img, cv2.COLOR_RGB2BGR), show = False, device = 0, conf = 0.4, save = False, persist = False)
+        for r in results:
+            self.objframe = ObjectDetectionFrame(r)
+
+        den_img = cv2.cvtColor(den_img, cv2.COLOR_RGB2BGRA)
+        self.denoised = den_img
+
 
     def check_frame(self):
         """check if there is a frame (is not None)"""
@@ -33,6 +49,9 @@ class Frame:
         """returns the transformed depth image"""
         return self.capture.transformed_depth
 
+    def get_mask(self, id):
+        return self.objframe.get_mask(id)
+
     def get_masked_point_cloud(self, _id):
         """returns the masked point cloud data , as a list with shape (N, 3)"""
         return self.get_point_cloud()[self.objframe.get_mask(_id) == 127]
@@ -49,11 +68,14 @@ class Frame:
     def get_obj_image(self):
         return self.objframe.result.plot()
 
-    def get_point_cloud_colors(self, _id):
+    def get_point_cloud_colors(self, _id, d = False):
         """returns the point cloud colors for open3d in the correct format,
 
          to use pointcloud.colors = o3d.utility.Vector3dVector(get_point_could_colors(id))"""
-        _image = cv2.cvtColor(self.get_image(), cv2.COLOR_BGR2RGB)
+        if d and self.denoised is not None:
+            _image = cv2.cvtColor(self.denoised, cv2.COLOR_BGR2RGB)
+        else:
+            _image = cv2.cvtColor(self.get_image(), cv2.COLOR_BGR2RGB)
         colored_points = _image[self.objframe.get_mask(_id) == 127]
         return colored_points.astype(np.float32) / 255.0
 
@@ -97,11 +119,11 @@ class Frame:
         pcd.colors = o3d.utility.Vector3dVector(self.get_point_cloud_colors(_id))
         o3d.visualization.draw_geometries([pcd])
 
-    def save_point_cloud_colored(self, _id, path):
+    def save_point_cloud_colored(self, _id, path, d = False):
         pcd = o3d.geometry.PointCloud()
         masked_points = self.get_masked_point_cloud(_id)
         pcd.points = o3d.utility.Vector3dVector(masked_points)
-        pcd.colors = o3d.utility.Vector3dVector(self.get_point_cloud_colors(_id))
+        pcd.colors = o3d.utility.Vector3dVector(self.get_point_cloud_colors(_id, d))
         o3d.io.write_point_cloud(f"{path}.ply", pcd, write_ascii = False)
 
     def get_ids(self):

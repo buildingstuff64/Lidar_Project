@@ -1,11 +1,9 @@
 from pathlib import Path
 
-from dash import callback
 from dearpygui import dearpygui as dpg
-from sympy import roots
 import open3d as o3d
-from Prod.Tools.registration_funcs import get_clusters, number_of_points
-from Prod.Tools.registration_funcs import ransac_icp_registration
+from Main.Scripts.registration_funcs import get_clusters, number_of_points
+from Main.Scripts.registration_funcs import ransac_icp_registration
 
 
 class Registrator():
@@ -95,7 +93,7 @@ class Registrator():
         return paired_mapping
 
     def load_frame_bundle(self, name):
-        dir = f"SavedFrames/{self.bundle_path}/{name}/point_cloud.ply"
+        dir = f"../Main/SavedFrames/{self.bundle_path}/{name}/point_cloud.ply"
         print(dir)
         pcd = o3d.io.read_point_cloud(dir)
         print(f"Point Count {number_of_points(pcd)}")

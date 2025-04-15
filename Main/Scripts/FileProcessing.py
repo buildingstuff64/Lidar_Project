@@ -1,25 +1,22 @@
 import json
 import os.path
-import pickle
 import uuid
-from cProfile import label
 from pathlib import Path
-from textwrap import indent
 
 import cv2
 import numpy as np
-from PIL import Image
 from dearpygui import dearpygui as dpg
-from torch.ao.nn.quantized.functional import upsample
-from ultralytics import settings
 
-from Prod.Tools.AzureKinectTools import AzureKinectTools
-from Prod.Tools.RegistrationTools import Registrator
-from Prod.Tools.Tools import Tools
-from Prod.Tools.KNN_upsample import run_main
+from Main.Scripts.AzureKinectTools import AzureKinectTools
+from Main.Scripts.Frame import Frame
+from Main.Scripts.RegistrationTools import Registrator
+from Main.Scripts.Tools import Tools
+from Main.Scripts.KNN_upsample import run_main
+
+import open3d as o3d
 
 ak = None
-current_frame = None
+current_frame = Frame
 total_frames = 0
 slider = None
 
@@ -73,6 +70,12 @@ def update_frame():
     dpg.set_value("rgb_video_frame", convert_img(current_frame.get_image()))
     dpg.set_value("obj_video_frame", convert_img(current_frame.get_obj_image()))
     dpg.set_value("depth_video_frame", convert_img(Tools.colorize(current_frame.get_transformed_depth())))
+    if current_frame.denoised is not None:
+        dpg.show_item("Denoised_view")
+        dpg.set_value("denoised_image", convert_img(current_frame.denoised))
+    else:
+        dpg.hide_item("Denoised_view")
+
     update_list()
 
 global_check_obj = {}
@@ -91,7 +94,7 @@ def import_mkv():
     if dpg.does_item_exist("global_object_ids"):
         dpg.delete_item("global_object_ids")
         global_check_obj.clear()
-    with dpg.child_window(label = "Global Objects in Frame", tag = "global_object_ids", parent = "object_list", show = True):
+    with dpg.child_window(label = "Global Objects in Frame", tag = "global_object_ids", parent = "object_list", show = True, height = 100):
         for item in ak.object_ids:
             print(item)
             global_check_obj[item] = dpg.add_checkbox(label = item, callback = on_item_select)
@@ -148,15 +151,23 @@ def on_item_select():
     dpg.set_value("mask_video_frame", convert_img(current_frame.get_masked_image(selected_ids)))
 
 def save_frame():
-    dir_path = Path(f"SavedFrames/{dpg.get_value('bundle_name')}/Frame_{dpg.get_value('video_slider')}_{uuid.uuid4().hex[:4]}")
+    global current_frame
+    dir_path = Path(f"../Main/SavedFrames/{dpg.get_value('bundle_name')}/Frame_{dpg.get_value('video_slider')}_{uuid.uuid4().hex[:4]}")
     dir_path.mkdir(parents = True, exist_ok = True)
 
-    save_img(current_frame.get_image(), dir_path, "rgb_image")
+    if dpg.get_value("save_denoised") and current_frame.denoised is not None:
+        save_img(current_frame.denoised, dir_path,"rgb_image")
+        print("saved denoised")
+    else:
+        save_img(current_frame.get_image(), dir_path, "rgb_image")
+
     save_img(current_frame.get_obj_image(), dir_path, "obj_image")
     save_img(current_frame.get_masked_image(selected_ids), dir_path, "mask_image")
     save_img(Tools.colorize(current_frame.get_transformed_depth()), dir_path, "depth_image")
+    save_img(Tools.colorize(current_frame.get_depth()), dir_path, "depth_raw_image")
+    save_img(current_frame.get_mask(selected_ids), dir_path, "mask_raw_image")
 
-    current_frame.save_point_cloud_colored(selected_ids, f"{dir_path}/point_cloud")
+    current_frame.save_point_cloud_colored(selected_ids, f"{dir_path}/point_cloud", dpg.get_value("save_denoised"))
 
     info = {
         "selected_ids": selected_ids
@@ -172,7 +183,8 @@ frames = []
 selected_bundle = bundles[0]
 def refresh_bundles():
     global bundles
-    root = Path("SavedFrames")
+    root = Path("../Main/SavedFrames")
+    root.mkdir(parents = True, exist_ok = True)
     bundles = [d.name for d in root.iterdir() if d.is_dir()]
     refresh_frames()
 
@@ -180,7 +192,7 @@ def refresh_frames():
     global frames
     if len(bundles) > 0:
         print(selected_bundle)
-        root = Path(f"SavedFrames/{selected_bundle}")
+        root = Path(f"../Main/SavedFrames/{selected_bundle}")
         frames = [d.name for d in root.iterdir() if d.is_dir()]
         dpg.configure_item("bundle_name", default_value = selected_bundle)
         update_save_list()
@@ -208,7 +220,7 @@ def bundle_select_reg():
 def frame_select():
     global current_frame
     selected_frame = dpg.get_value("frame_list")
-    dir = f"SavedFrames/{selected_bundle}/{selected_frame}"
+    dir = f"../Main/SavedFrames/{selected_bundle}/{selected_frame}"
     open_folder(dir)
 
 def open_folder(path):
@@ -295,8 +307,7 @@ def update_editor_bundle():
         refresh_bundles()
         i = 0
         for f in frames:
-
-            create_node(f, io = [[],[None]], pos = [0, i], image_path = f"SavedFrames/{selected_bundle}/{f}/obj_image.png")
+            create_node(f, io = [[],[None]], pos = [0, i], image_path = f"../Main/SavedFrames/{selected_bundle}/{f}/obj_image.png")
             i+= 200
         create_node("Final Point Cloud", io = ([None], []), pos = [500, i/2], tag="FinalPointCloud")
         print("bundles")
@@ -352,6 +363,21 @@ def run_upsample():
 
     run_main(upsample_file, settings)
 
+def show_point_cloud(sender, app_data):
+    pcd = o3d.io.read_point_cloud(app_data["file_path_name"])
+    o3d.visualization.draw_geometries_with_editing([pcd])
+
+def run_denoising():
+    global current_frame
+    dpg.show_item("Denoising_Loading")
+    current_frame.rerun_with_denoise()
+    dpg.show_item("save_denoised")
+    dpg.set_value("save_denoised", True)
+    dpg.hide_item("Denoising_Loading")
+
+    update_frame()
+    print("Finished Denoising")
+
 
 dpg.create_context()
 load_settings()
@@ -362,6 +388,7 @@ with dpg.texture_registry():
     dpg.add_dynamic_texture(width = 1920, height = 1080, default_value = initial_texture, tag = "obj_video_frame")
     dpg.add_dynamic_texture(width = 1920, height = 1080, default_value = initial_texture, tag = "mask_video_frame")
     dpg.add_dynamic_texture(width = 1920, height = 1080, default_value = initial_texture, tag = "depth_video_frame")
+    dpg.add_dynamic_texture(width = 1920, height = 1080, default_value = initial_texture, tag = "denoised_image")
 
 with dpg.window(label="Warning !!!", modal=True, show=False, tag="warning_popup", no_title_bar=False):
     dpg.add_text("Are you sure you want to continue...")
@@ -374,10 +401,16 @@ with dpg.window(label="File Import", modal=True, show=False, tag="file_import", 
     dpg.add_text(default_value = "Loading ... ", tag = "progress_bar")
     dpg.add_text("", tag = "patience_string")
 
+with dpg.window(label = "Denoising", modal = True, show = False, tag = "Denoising_Loading", no_title_bar = True, pos = [800, 600]):
+    dpg.add_text("Loading...")
+
 with dpg.file_dialog(directory_selector = False, show=False, callback = load_mkv_callback, tag = "file_dialog_id", width = 500, height = 700):
     dpg.add_file_extension("Video Files (*.mkv){.mkv}")
 
 with dpg.file_dialog(directory_selector = False, show=False, callback = load_upsample_file, tag = "file_dialog_id_upsample", width = 500, height = 700):
+    dpg.add_file_extension("Point Cloud Files (*.ply){.ply}")
+
+with dpg.file_dialog(directory_selector = False, show=False, callback = show_point_cloud, tag = "show_point_cloud", width = 500, height = 700):
     dpg.add_file_extension("Point Cloud Files (*.ply){.ply}")
 
 with dpg.handler_registry():
@@ -388,6 +421,9 @@ with dpg.handler_registry():
         dpg.add_input_int(label = "Select Frame", tag = "video_slider", default_value = 0, max_value = total_frames, callback = update_frame_viewer)
         dpg.add_text("Object in Frame")
         dpg.add_button(label = "View Point Cloud (open3d)", callback = show_frame_point_cloud)
+        dpg.add_button(label = "Run Denoising on frame", callback = run_denoising)
+        dpg.add_tooltip(parent = dpg.last_item(), label = "WARNING many take time to run be patient, and will override original results")
+        dpg.add_checkbox(label = "Save With Denoised", default_value = False, tag = "save_denoised", show = False)
         with dpg.tab_bar():
             with dpg.tab(label = "Saved Data", tag = "frame_save"):
                 dpg.add_input_text(default_value = selected_bundle, label = "Frame Bundle Name",
@@ -399,9 +435,10 @@ with dpg.handler_registry():
             with dpg.tab(label = "Object Select", tag = "object_list"):
                 dpg.add_text("Global Objects")
 
+
     #video viewer
     with dpg.window(label = "Frame Viewer",tag = "video_window", show = False, pos=[450, 75]):
-        with dpg.tab_bar():
+        with dpg.tab_bar(tag = "frame_viewer_tabs"):
             with dpg.tab(label = "Object Detection"):
                 dpg.add_image("obj_video_frame")
             with dpg.tab(label = "Masked Image"):
@@ -410,6 +447,8 @@ with dpg.handler_registry():
                 dpg.add_image("depth_video_frame")
             with dpg.tab(label = "Raw RGB Image"):
                 dpg.add_image("rgb_video_frame")
+            with dpg.tab(label = "Denoised Image", tag = "Denoised_view", show = False):
+                dpg.add_image("denoised_image")
 
     with dpg.window(label = "Point Cloud Registation", tag = "registration_window", show=False, pos = [450, 75], width = 1500, height = 1000):
         with dpg.tab_bar():
@@ -448,6 +487,7 @@ with dpg.viewport_menu_bar():
     with dpg.menu(label = "File"):
         dpg.add_menu_item(label = "Import .mkv", callback = lambda: dpg.show_item("file_dialog_id"))
         dpg.add_menu_item(label = f"Import {settings['input_file_path']}", callback = import_mkv)
+        dpg.add_menu_item(label = "Open .ply", callback = lambda : dpg.show_item("show_point_cloud"))
     with dpg.menu(label = "Settings"):
         dpg.add_menu_item(label = "Load (settings.json)", callback = load_settings)
         dpg.add_menu_item(label = "Save (settings.json)", callback = save_settings)
