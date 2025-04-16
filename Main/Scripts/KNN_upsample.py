@@ -1,5 +1,10 @@
+from pathlib import Path
+
 import open3d as o3d
 import numpy as np
+
+from Main.Scripts.FileManager import POINT_CLOUDS_PATH
+
 
 def load_pcd(pcd_path):
 
@@ -52,12 +57,11 @@ def upsample_pcd_knn(points, colors, upsample_factor, knn_factor, cov_spread_fac
 
 
 def save_pcd_path(points, colors, output_path):
-
     pcd = o3d.geometry.PointCloud()
     pcd.points = o3d.utility.Vector3dVector(points)
     if colors is not None:
         pcd.colors = o3d.utility.Vector3dVector(colors)
-    o3d.io.write_point_cloud(output_path, pcd)
+    o3d.io.write_point_cloud(output_path, pcd, write_ascii = False)
 
 
 def main():
@@ -81,7 +85,11 @@ def main():
     print(upsampled_pcd)
 
 def run_main(input_file, settings):
-    output_file = settings["upsample_filename"]
+    filename = f"{settings['upsample_filename']}"
+    output_file_dir = POINT_CLOUDS_PATH.joinpath(Path(f"Upsampled"))
+    output_file_dir.mkdir(parents = True, exist_ok = True)
+    output_file = output_file_dir.joinpath(Path(f"{filename}.ply"))
+    print(output_file.resolve())
 
     original_points, original_colors, original_pcd = load_pcd(input_file)
 
@@ -89,13 +97,9 @@ def run_main(input_file, settings):
     upsampled_points, upsampled_colors = upsample_pcd_knn(
         original_points, original_colors, upsample_factor = settings['upsample_factor'], knn_factor = settings["knn_factor"], cov_spread_factor = settings["cov_factor"])
 
-    save_pcd_path(upsampled_points, upsampled_colors, output_file)
+    save_pcd_path(upsampled_points, upsampled_colors, output_file.resolve())
 
-    upsampled_pcd = o3d.geometry.PointCloud()
-    upsampled_pcd.points = o3d.utility.Vector3dVector(upsampled_points)
-    if upsampled_colors is not None:
-        upsampled_pcd.colors = o3d.utility.Vector3dVector(upsampled_colors)
-
+    upsampled_pcd = o3d.io.read_point_cloud(output_file.resolve())
     o3d.visualization.draw_geometries([upsampled_pcd])
     print(upsampled_pcd)
 

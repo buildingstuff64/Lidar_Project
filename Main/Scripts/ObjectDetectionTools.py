@@ -7,17 +7,19 @@ from ultralytics import YOLO
 import cv2
 from ultralytics.engine.results import Results
 
+from Main.Scripts.FileManager import YOLO_PATH
+
 
 class ObjectDetectionTools:
     def __init__(self, path):
         self.path = path
-        self.model = YOLO("../Main/Models/yolo11m-seg.pt")
+        self.model = YOLO(YOLO_PATH.resolve())
         self.results = self.model.track(source = self.path, show = False, device = 0, conf = 0.4, save = False,
                                         stream = True)
 
     @staticmethod
     def run_single_image(paths, save, conf):
-        model = YOLO("../Main/Models/yolo11m-seg.pt")
+        model = YOLO(YOLO_PATH.resolve())
         for p in paths:
             model(source = p, show=True, device = 0, conf=conf, save=save)
 

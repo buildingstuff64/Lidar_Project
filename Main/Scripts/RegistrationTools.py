@@ -2,6 +2,8 @@ from pathlib import Path
 
 from dearpygui import dearpygui as dpg
 import open3d as o3d
+
+from Main.Scripts.FileManager import POINT_CLOUDS_PATH, get_saved_frame_dir, get_frame_dir
 from Main.Scripts.registration_funcs import get_clusters, number_of_points
 from Main.Scripts.registration_funcs import ransac_icp_registration
 
@@ -50,7 +52,7 @@ class Registrator():
                 final_pcd = self.id_pcd[k]
 
         if final_pcd is not None:
-            dir_path = Path(f"../Main/PointClouds/{self.bundle_path}")
+            dir_path = POINT_CLOUDS_PATH.joinpath(Path(f"{self.bundle_path}"))
             dir_path.mkdir(parents = True, exist_ok = True)
             o3d.io.write_point_cloud(f"{dir_path}/{self.output_path}.ply", final_pcd)
 
@@ -93,7 +95,7 @@ class Registrator():
         return paired_mapping
 
     def load_frame_bundle(self, name):
-        dir = f"../Main/SavedFrames/{self.bundle_path}/{name}/point_cloud.ply"
+        dir = get_frame_dir(self.bundle_path, name).joinpath("point_cloud.ply")
         print(dir)
         pcd = o3d.io.read_point_cloud(dir)
         print(f"Point Count {number_of_points(pcd)}")

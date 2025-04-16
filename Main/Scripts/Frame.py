@@ -5,6 +5,7 @@ from sympy import false
 
 #from Main.Scripts.AzureKinectTools import AzureKinectTools
 from Main.Scripts.Denoiser import Denoiser
+from Main.Scripts.FileManager import SCUNET_PATH
 from Main.Scripts.Tools import Tools
 from Main.Scripts.ObjectDetectionTools import ObjectDetectionFrame
 import open3d as o3d
@@ -22,7 +23,7 @@ class Frame:
         self.denoised = None
 
     def rerun_with_denoise(self):
-        denoiser = Denoiser("../Main/Models/scunet_color_real_psnr.pth")
+        denoiser = Denoiser(SCUNET_PATH.resolve())
         den_img = denoiser.run_img(cv2.cvtColor(self.color, cv2.COLOR_BGRA2RGB))
 
         results = self.ak.obj.model.track(source = cv2.cvtColor(den_img, cv2.COLOR_RGB2BGR), show = False, device = 0, conf = 0.4, save = False, persist = False)

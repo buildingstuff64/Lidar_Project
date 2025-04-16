@@ -8,6 +8,7 @@ import numpy as np
 from dearpygui import dearpygui as dpg
 
 from Main.Scripts.AzureKinectTools import AzureKinectTools
+from Main.Scripts.FileManager import get_saved_frame_dir, get_bundle_dir, get_settings_dir, get_frame_dir
 from Main.Scripts.Frame import Frame
 from Main.Scripts.RegistrationTools import Registrator
 from Main.Scripts.Tools import Tools
@@ -29,7 +30,7 @@ SETTINGS_DEFAULT = {
     "upsample_filename": ""
 }
 
-default_json_path = "settings.json"
+default_json_path = get_settings_dir()
 
 def load_settings():
     global settings
@@ -152,7 +153,8 @@ def on_item_select():
 
 def save_frame():
     global current_frame
-    dir_path = Path(f"../Main/SavedFrames/{dpg.get_value('bundle_name')}/Frame_{dpg.get_value('video_slider')}_{uuid.uuid4().hex[:4]}")
+    #dir_path = Path(f"../Main/SavedFrames/{dpg.get_value('bundle_name')}/Frame_{dpg.get_value('video_slider')}_{uuid.uuid4().hex[:4]}")
+    dir_path = get_frame_dir(dpg.get_value('bundle_name'), f"Frame_{dpg.get_value('video_slider')}_{uuid.uuid4().hex[:4]}")
     dir_path.mkdir(parents = True, exist_ok = True)
 
     if dpg.get_value("save_denoised") and current_frame.denoised is not None:
@@ -183,7 +185,7 @@ frames = []
 selected_bundle = bundles[0]
 def refresh_bundles():
     global bundles
-    root = Path("../Main/SavedFrames")
+    root = get_saved_frame_dir()
     root.mkdir(parents = True, exist_ok = True)
     bundles = [d.name for d in root.iterdir() if d.is_dir()]
     refresh_frames()
@@ -192,7 +194,7 @@ def refresh_frames():
     global frames
     if len(bundles) > 0:
         print(selected_bundle)
-        root = Path(f"../Main/SavedFrames/{selected_bundle}")
+        root = get_bundle_dir(selected_bundle)
         frames = [d.name for d in root.iterdir() if d.is_dir()]
         dpg.configure_item("bundle_name", default_value = selected_bundle)
         update_save_list()
@@ -220,7 +222,8 @@ def bundle_select_reg():
 def frame_select():
     global current_frame
     selected_frame = dpg.get_value("frame_list")
-    dir = f"../Main/SavedFrames/{selected_bundle}/{selected_frame}"
+    #dir = f"../Main/SavedFrames/{selected_bundle}/{selected_frame}"
+    dir = get_frame_dir(selected_bundle, selected_frame)
     open_folder(dir)
 
 def open_folder(path):
@@ -307,7 +310,9 @@ def update_editor_bundle():
         refresh_bundles()
         i = 0
         for f in frames:
-            create_node(f, io = [[],[None]], pos = [0, i], image_path = f"../Main/SavedFrames/{selected_bundle}/{f}/obj_image.png")
+            if not Path(f"{get_frame_dir(selected_bundle, f)}/point_cloud.ply").exists():
+                continue
+            create_node(f, io = [[],[None]], pos = [0, i], image_path = f"{get_frame_dir(selected_bundle, f)}/obj_image.png")
             i+= 200
         create_node("Final Point Cloud", io = ([None], []), pos = [500, i/2], tag="FinalPointCloud")
         print("bundles")
@@ -355,6 +360,7 @@ def load_upsample_file(sender, app_data):
 
 def run_upsample():
     global settings, upsample_file
+    dpg.show_item("Denoising_Loading")
     print("starting upsample")
     settings['upsample_factor'] = dpg.get_value("upsample_factor")
     settings['knn_factor'] = dpg.get_value("knn_factor")
@@ -362,6 +368,7 @@ def run_upsample():
     settings['upsample_filename'] = dpg.get_value('upsample_filename')
 
     run_main(upsample_file, settings)
+    dpg.hide_item("Denoising_Loading")
 
 def show_point_cloud(sender, app_data):
     pcd = o3d.io.read_point_cloud(app_data["file_path_name"])
